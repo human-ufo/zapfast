@@ -104,6 +104,16 @@ struct Cli {
 enum Control {
     /// Reload palettes in an already-running ZapFast without showing its window.
     ReloadThemes,
+    /// Clear a chat's messages here and on the linked phone, keeping the chat.
+    ClearChat {
+        /// Chat JID, such as `120363233401218578@g.us`.
+        jid: String,
+    },
+    /// Delete a chat here and on the linked phone.
+    DeleteChat {
+        /// Chat JID, such as `120363233401218578@g.us`.
+        jid: String,
+    },
 }
 
 /// Default log filter, used when `RUST_LOG` is unset.
@@ -116,6 +126,28 @@ enum Control {
 /// data-control protocol (GNOME, mutter) and it falls back to X11, which works
 /// there. Quiet that one target so it does not fill the log file, without
 /// hiding real clipboard failures (`arboard=error`) or any other warning.
+/// Sends one control verb to a running instance and exits. A missing or
+/// refusing instance prints a friendly message and exits with code 1.
+fn send_control_verb(
+    runtime: &std::path::Path,
+    verb: &str,
+    not_running_message: &str,
+) -> eframe::Result<()> {
+    if let Err(error) = single_instance::send(runtime, verb) {
+        use std::io::ErrorKind;
+        if matches!(
+            error.kind(),
+            ErrorKind::NotFound | ErrorKind::ConnectionRefused
+        ) {
+            eprintln!("{not_running_message}");
+        } else {
+            eprintln!("Could not reach the running ZapFast: {error}");
+        }
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
 fn default_log_filter(verbose: bool) -> &'static str {
     if verbose {
         "info,zapfast=debug,whatsapp_rust=debug,wacore=debug"
@@ -143,20 +175,29 @@ fn run() -> eframe::Result<()> {
     let launch = fastframe_update::intercept(&zapfast::updates::CONFIG);
     let cli = Cli::parse_from(&launch.arguments);
     let discovered = paths::AppDirs::discover();
-    if matches!(cli.command, Some(Control::ReloadThemes)) {
-        if let Err(error) = single_instance::send(&discovered.runtime, "reload-themes") {
-            use std::io::ErrorKind;
-            if matches!(
-                error.kind(),
-                ErrorKind::NotFound | ErrorKind::ConnectionRefused
-            ) {
-                eprintln!("ZapFast is not running, so there are no themes to reload.");
-            } else {
-                eprintln!("Could not reach the running ZapFast: {error}");
-            }
-            std::process::exit(1);
+    match cli.command {
+        Some(Control::ReloadThemes) => {
+            return send_control_verb(
+                &discovered.runtime,
+                "reload-themes",
+                "ZapFast is not running, so there are no themes to reload.",
+            );
         }
-        return Ok(());
+        Some(Control::ClearChat { jid }) => {
+            return send_control_verb(
+                &discovered.runtime,
+                &format!("clear-chat {jid}"),
+                "ZapFast is not running, so there is no chat to clear.",
+            );
+        }
+        Some(Control::DeleteChat { jid }) => {
+            return send_control_verb(
+                &discovered.runtime,
+                &format!("delete-chat {jid}"),
+                "ZapFast is not running, so there is no chat to delete.",
+            );
+        }
+        None => {}
     }
     let waker = backend::Waker::default();
     #[cfg(feature = "demo")]

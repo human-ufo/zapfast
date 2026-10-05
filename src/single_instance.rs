@@ -41,7 +41,7 @@ pub enum Outcome {
 }
 
 /// Request from another launch.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ControlCommand {
     /// Shows or creates the window.
     Show,
@@ -49,6 +49,10 @@ pub enum ControlCommand {
     ReloadThemes,
     /// Confirms an instance is running and changes nothing.
     Ping,
+    /// Clears a chat's messages here and on the linked phone, keeping the chat.
+    ClearChat(String),
+    /// Deletes a chat here and on the linked phone.
+    DeleteChat(String),
 }
 
 type Queue = Arc<Mutex<Vec<ControlCommand>>>;
@@ -127,8 +131,28 @@ fn parse(verb: &str) -> Option<ControlCommand> {
         "show" => Some(ControlCommand::Show),
         "reload-themes" => Some(ControlCommand::ReloadThemes),
         "ping" => Some(ControlCommand::Ping),
-        _ => None,
+        _ => {
+            let (command, jid) = verb.split_once(' ')?;
+            if !valid_jid(jid) {
+                return None;
+            }
+            match command {
+                "clear-chat" => Some(ControlCommand::ClearChat(jid.to_owned())),
+                "delete-chat" => Some(ControlCommand::DeleteChat(jid.to_owned())),
+                _ => None,
+            }
+        }
     }
+}
+
+/// Loose JID validation: non-empty, contains '@', and no whitespace or control
+/// characters. Keeps the socket from accepting garbage as a chat identifier.
+fn valid_jid(jid: &str) -> bool {
+    !jid.is_empty()
+        && jid.contains('@')
+        && !jid
+            .chars()
+            .any(|character| character.is_whitespace() || character.is_control())
 }
 
 /// Asks a running copy that predates the lock to handle `verb`.
@@ -246,9 +270,37 @@ mod tests {
         assert_eq!(parse("show"), Some(ControlCommand::Show));
         assert_eq!(parse("ping"), Some(ControlCommand::Ping));
         assert_eq!(parse("reload-themes"), Some(ControlCommand::ReloadThemes));
+        assert_eq!(
+            parse("clear-chat 120363233401218578@g.us"),
+            Some(ControlCommand::ClearChat(
+                "120363233401218578@g.us".to_owned()
+            ))
+        );
+        assert_eq!(
+            parse("delete-chat 1234567890@s.whatsapp.net"),
+            Some(ControlCommand::DeleteChat(
+                "1234567890@s.whatsapp.net".to_owned()
+            ))
+        );
         assert_eq!(parse("GET / HTTP/1.1"), None);
         assert_eq!(parse("frobnicate"), None);
         assert_eq!(parse(""), None);
+        assert_eq!(parse("clear-chat"), None, "a missing JID is declined");
+        assert_eq!(
+            parse("clear-chat no-at-sign"),
+            None,
+            "a JID without @ is declined"
+        );
+        assert_eq!(
+            parse("clear-chat 120363233401218578@g.us extra"),
+            None,
+            "extra arguments are declined"
+        );
+        assert_eq!(
+            parse("clear-chat 120363233401218578@g\t.us"),
+            None,
+            "whitespace inside a JID is declined"
+        );
     }
 
     fn connect(port: u16) -> TcpStream {
@@ -317,6 +369,8 @@ mod tests {
         let second = claim(&dir, "show", &Queue::default(), &waker);
         assert!(matches!(second, fastframe_instance::Claim::Running(reply) if reply == OK));
         send(&dir, "reload-themes").expect("themes reload without a window");
+        send(&dir, "clear-chat 120363233401218578@g.us").expect("clear-chat reaches the queue");
+        send(&dir, "delete-chat 1234567890@s.whatsapp.net").expect("delete-chat reaches the queue");
         let declined = send(&dir, "frobnicate").unwrap_err();
         assert_eq!(declined.kind(), std::io::ErrorKind::PermissionDenied);
         assert!(matches!(
@@ -343,6 +397,8 @@ mod tests {
             vec![
                 ControlCommand::Show,
                 ControlCommand::ReloadThemes,
+                ControlCommand::ClearChat("120363233401218578@g.us".to_owned()),
+                ControlCommand::DeleteChat("1234567890@s.whatsapp.net".to_owned()),
                 ControlCommand::Show,
             ]
         );
