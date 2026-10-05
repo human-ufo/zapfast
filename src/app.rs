@@ -1468,6 +1468,8 @@ impl App {
                 ControlCommand::Show => self.actions.push(Action::ShowWindow),
                 ControlCommand::ReloadThemes => self.actions.push(Action::ReloadThemes),
                 ControlCommand::Ping => {}
+                ControlCommand::ClearChat(chat) => self.actions.push(Action::ClearChat(chat)),
+                ControlCommand::DeleteChat(chat) => self.actions.push(Action::DeleteChat(chat)),
             }
         }
     }
