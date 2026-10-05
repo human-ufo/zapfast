@@ -6,9 +6,9 @@ use zapfast::{app, backend, paths, settings, single_instance};
 
 use clap::Parser;
 
-/// A fast, native WhatsApp client.
+/// A fast, native WhatsApp client (experimental fork).
 #[derive(Debug, Parser)]
-#[command(name = "zapfast", version, about)]
+#[command(name = "zapfast-exp", version, about = "Experimental ZapFast fork")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Control>,
@@ -102,7 +102,7 @@ struct Cli {
 
 #[derive(Debug, clap::Subcommand)]
 enum Control {
-    /// Reload palettes in an already-running ZapFast without showing its window.
+    /// Reload palettes in an already-running ZapFast Experimental without showing its window.
     ReloadThemes,
     /// Clear a chat's messages here and on the linked phone, keeping the chat.
     ClearChat {
@@ -461,11 +461,15 @@ fn native_options(
     let default_size = demo_size_arg().unwrap_or([1180.0, 780.0]);
     let demo = demo_persistence.is_some();
     let viewport = egui::ViewportBuilder::default()
-        .with_title(if demo { "ZapFast Demo" } else { "ZapFast" })
+        .with_title(if demo {
+            "ZapFast Demo"
+        } else {
+            "ZapFast Experimental"
+        })
         .with_app_id(if demo {
             "zapfast-demo".to_owned()
         } else {
-            std::env::var("FLATPAK_ID").unwrap_or_else(|_| "zapfast".to_owned())
+            std::env::var("FLATPAK_ID").unwrap_or_else(|_| "zapfast-exp".to_owned())
         });
     // The remembered size and position, from the settings. eframe's own
     // stored window (when present from an earlier version) still wins over

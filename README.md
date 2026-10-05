@@ -1,5 +1,13 @@
 # ZapFast
 
+> **Experimental fork:** this is the `human-ufo/zapfast` fork, built and
+> installed as `zapfast-exp`. It runs in parallel with the official ZapFast
+> (`zapfast`) and uses its own configuration, state, and socket under
+> `~/.config/zapfast-exp`, `~/.local/state/zapfast-exp`, and
+> `/run/user/$UID/zapfast-exp`. It adds extra CLI control verbs such as
+> `clear-chat` and `delete-chat`. It is not affiliated with or endorsed by the
+> upstream project.
+
 **WhatsApp, native and fast.** ZapFast is a WhatsApp client for Linux, macOS,
 and Windows, written in Rust with [egui](https://github.com/emilk/egui) and
 [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust). It links to your

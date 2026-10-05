@@ -14,16 +14,19 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// Stable wire identity shared with FastsApp so upgrades surface a running
-/// older copy before migrating its session files. On the wire every request
-/// and reply starts with `fastsapp:`.
-const NAME: &str = "fastsapp";
+/// Instance slot name for the experimental fork. It differs from upstream
+/// `fastsapp` so `zapfast` and `zapfast-exp` can run side by side. On the
+/// wire every request and reply still starts with `fastsapp:` for backwards
+/// compatibility with the existing verb format.
+const NAME: &str = "zapfastexp";
 const PREFIX: &str = "fastsapp:";
 /// What ZapFast answers a request it takes: `fastsapp:ok` on the wire.
 const OK: &str = "ok";
 
-/// Fixed port of copies that predate the lock. They never take it.
-const LEGACY_PORT: u16 = 47_119;
+/// Fixed port of copies that predate the lock. They never take it. This port
+/// is offset from upstream so the experimental app does not collide with the
+/// official ZapFast legacy listener.
+const LEGACY_PORT: u16 = 47_120;
 /// Longest request accepted on the legacy port.
 const LEGACY_REQUEST_LIMIT: usize = 256;
 /// Time a client gets to send its whole request on the legacy port.
@@ -204,7 +207,7 @@ fn listen_legacy(commands: Queue, waker: crate::backend::Waker) {
         }
     };
     let spawned = std::thread::Builder::new()
-        .name("zapfast-legacy-instance".to_owned())
+        .name("zapfastexp-legacy-instance".to_owned())
         .spawn(move || serve_legacy(listener, &commands, &waker));
     if let Err(error) = spawned {
         log::debug!("cannot answer older launches: {error}");
@@ -350,11 +353,9 @@ mod tests {
         reply
     }
 
-    /// A second launch reaches the first, whether it is this version or one
-    /// from before fastframe-instance, which writes and expects the same
-    /// lines: `fastsapp:show` in, `fastsapp:ok` out. Themes reload without a
-    /// window. Unknown verbs are declined, and on Windows a wrong token gets
-    /// no reply.
+    /// A second launch reaches the first over the current wire. Themes reload
+    /// without a window. Unknown verbs are declined, and on Windows a wrong
+    /// token gets no reply.
     #[test]
     fn a_second_launch_reaches_the_queue_on_the_old_wire() {
         let home = tempfile::tempdir().unwrap();
@@ -378,16 +379,19 @@ mod tests {
             fastframe_instance::Claim::Declined
         ));
 
-        // A launch of an older version.
-        assert_eq!(raw_request(&dir, "fastsapp:show", None), "fastsapp:ok\n");
+        // A raw request on the socket must use this fork's wire prefix.
         assert_eq!(
-            raw_request(&dir, "fastsapp:frobnicate", None),
-            "fastsapp!declined\n",
+            raw_request(&dir, "zapfastexp:show", None),
+            "zapfastexp:ok\n"
+        );
+        assert_eq!(
+            raw_request(&dir, "zapfastexp:frobnicate", None),
+            "zapfastexp!declined\n",
             "which an older copy reads as no answer"
         );
         #[cfg(not(unix))]
         assert_eq!(
-            raw_request(&dir, "fastsapp:show", Some(&"0".repeat(64))),
+            raw_request(&dir, "zapfastexp:show", Some(&"0".repeat(64))),
             "",
             "a wrong token is refused"
         );
