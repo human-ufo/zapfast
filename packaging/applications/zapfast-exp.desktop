@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ZapFast Experimental
+GenericName=WhatsApp Client
+Comment=Experimental human-ufo fork of ZapFast; runs parallel to the official app
+Exec=zapfast-exp
+Icon=zapfast
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=whatsapp;chat;messaging;experimental;
+StartupWMClass=zapfast-exp
